@@ -8,13 +8,16 @@ import json
 import os
 import tensorflow as tf
 from tensorflow import keras
+from datetime import datetime
 
 class frameworkB:
 
 	def __init__(self,
 				 FILE_LOCATION_DISEASE_MAPPING,
 				 DISEASE_SPECIFIC_TESTING_DATA,
-				 FIELD_TO_MODEL_MAPPING):
+				 FIELD_TO_MODEL_MAPPING, 
+				 STATE_FIELD_MAPPING):
+		start_time = datetime.now()
 		self.FILE_LOCATION_DISEASE_MAPPING = FILE_LOCATION_DISEASE_MAPPING;
 		self.DISEASE_SPECIFIC_TESTING_DATA = DISEASE_SPECIFIC_TESTING_DATA;
 		self.FIELD_TO_MODEL_MAPPING = FIELD_TO_MODEL_MAPPING;
@@ -23,8 +26,11 @@ class frameworkB:
 		self.D_MODELS = {}
 		self.STATE_MODELS = {}
 		self.INFERENCE_RESULT = {}
+		self.STATE_FIELD_MAPPING = STATE_FIELD_MAPPING;
 		state_names = next(os.walk('.'))[1]
 		for state in state_names:
+			if(state == ".git" or state == ".__pycache__"):
+				continue;
 			self.CITY_MODELS[state] = {}
 			self.SD_MODELS[state] = {}
 			self.D_MODELS[state] = {}
@@ -152,6 +158,8 @@ class frameworkB:
 						selected_model = model_for_d
 
 				self.STATE_MODELS[state][disease] = selected_model
+		end_time = datetime.now()
+		print("Initialization time : ", str((end_time - start_time).total_seconds()))
 
 	def infer(self, test_data, tier_of_choice):
 		self.INFERENCE_RESULT = {}
@@ -160,6 +168,8 @@ class frameworkB:
 		state_names = next(os.walk('.'))[1]
 		if(tier_of_choice == 'field'):
 			for state in state_names:
+				if(state == '.git' or state == '__pycache__'):
+					continue;
 				self.INFERENCE_RESULT[state] = {}
 				district_names = next(os.walk('./' + state))[1]
 				for district in district_names:
@@ -174,19 +184,19 @@ class frameworkB:
 							for field in fields:
 								self.INFERENCE_RESULT[state][district][sub_district][city][field] = {}
 								models_of_field = self.FIELD_TO_MODEL_MAPPING[state][district][sub_district][city][field]
-								disease_set = STATE_FIELD_MAPPING[state][district][sub_district][city][field]
-								mapping_dict_inv = {v: k for k, v in mapping_dictionary.items()}
+								disease_set = self.STATE_FIELD_MAPPING[state][district][sub_district][city][field]
 
+								for i in range(len(disease_set)):
+									model_of_disease = models_of_field[disease_set[i]]
 
-							for i in range(len(disease_set)):
-								model_of_disease = models_of_field[disease_set[i]]
-
-								self.INFERENCE_RESULT[state][district][sub_district][city][field][disease_set[i]] = model_of_disease.predict(np.expand_dims(test_data, axis=0), verbose = 0)[0][0]
+									self.INFERENCE_RESULT[state][district][sub_district][city][field][disease_set[i]] = model_of_disease.predict(np.expand_dims(test_data, axis=0), verbose = 0)[0][0]
 
 			return self.INFERENCE_RESULT
 
 		elif(tier_of_choice == 'city'):
 			for state in state_names:
+				if(state == ".git"):
+					continue;
 				self.INFERENCE_RESULT[state] = {}
 				district_names = next(os.walk('./' + state))[1]
 				for district in district_names:
@@ -204,6 +214,8 @@ class frameworkB:
 
 		elif(tier_of_choice == 'sub_district'):
 			for state in state_names:
+				if(state == ".git"):
+					continue;
 				self.INFERENCE_RESULT[state] = {}
 				district_names = next(os.walk('./' + state))[1]
 				for district in district_names:
@@ -219,6 +231,8 @@ class frameworkB:
 
 		elif(tier_of_choice == 'district'):
 			for state in state_names:
+				if(state == ".git"):
+					continue;
 				self.INFERENCE_RESULT[state] = {}
 				district_names = next(os.walk('./' + state))[1]
 				for district in district_names:
@@ -231,6 +245,8 @@ class frameworkB:
 
 		elif(tier_of_choice == 'state'):
 			for state in state_names:
+				if(state == ".git"):
+					continue;
 				self.INFERENCE_RESULT[state] = {}
 				district_names = next(os.walk('./' + state))[1]
 			

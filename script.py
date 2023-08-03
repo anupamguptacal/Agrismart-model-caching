@@ -10,6 +10,7 @@ from tensorflow import keras
 from frameworkB import *
 from frameworkA import *
 from frameworkC import *
+from datetime import datetime
 
 STATE_FIELD_MAPPING = {}
 STATE_MODEL_MAPPING = {}
@@ -24,6 +25,7 @@ FIELD_TO_MODEL_MAPPING = {}
 DISEASE_SPECIFIC_TESTING_DATA = {}
 GLOBAL_EPOCHS = 50
 GLOBAL_BATCH_SIZE = 32
+DATASET_FIELD_STRENGTH = {}
 
 
 def pre_processing():
@@ -31,16 +33,20 @@ def pre_processing():
 	state_names = next(os.walk('.'))[1]
 
 	for state in state_names:
+		if(state == '.git' or state == '__pycache__'):
+			continue;
 		dictionary_state_field_level = {}
 		dictionary_state_model_level = {}
 		dictionary_y_train_state_level = {}
 		dictionary_state_optimizer_level = {}
+		DATASET_FIELD_STRENGTH[state] = {}
 		district_names = next(os.walk('./' + state))[1]
 		for district in district_names:
 			dictionary_district_field_level = {}
 			dictionary_district_model_level = {}
 			dictionary_y_train_district_level = {}
 			dictionary_district_optimizer_level = {}
+			DATASET_FIELD_STRENGTH[state][district] = {}
 
 			sub_district_names = next(os.walk('./' + state + "/" + district))[1]
 
@@ -49,6 +55,7 @@ def pre_processing():
 				dictionary_sub_district_model_level = {}
 				dictionary_y_train_sub_district_level = {}
 				dictionary_sub_district_optimizer_level = {}
+				DATASET_FIELD_STRENGTH[state][district][sub_district] = {}
 				node_names = next(os.walk('./' + state + "/" + district + "/" + sub_district))[1]
 				
 				for city in node_names:
@@ -56,9 +63,11 @@ def pre_processing():
 					dictionary_model = {}
 					dictionary_y_mapping = {}
 					dictionary_optimizer = {}
+					DATASET_FIELD_STRENGTH[state][district][sub_district][city] = {}
 
 					fields = next(os.walk('./' + state + '/' + district + "/" + sub_district + "/" + city))[1]
 					for field in fields:
+						DATASET_FIELD_STRENGTH[state][district][sub_district][city][field] = {}
 						write_file_name = construct_compiled_file_location(state, district, sub_district, city, field)
 						FIELD_DATA_FILE_LOCATIONS.append(write_file_name)
 
@@ -77,7 +86,7 @@ def pre_processing():
 							print("Data Intake and Pre-Processing for " + file_location + " completed.")
 
 						FILE_LOCATION_DISEASE_MAPPING[write_file_name] = list(disease_set)
-						dictionary_field[field] = disease_set
+						dictionary_field[field] = list(disease_set)
 						dictionary_model[field] = None
 						dictionary_optimizer[field] = None
 
@@ -141,6 +150,8 @@ def model_creation():
 	print_separation_line()
 	state_names = next(os.walk('.'))[1]
 	for state in state_names:
+		if(state == '.git' or state == '__pycache__'):
+			continue;
 		district_names = next(os.walk('./' + state))[1]
 		for district in district_names:
 			sub_district_names = next(os.walk('./' + state + "/" + district))[1]
@@ -169,6 +180,7 @@ def create_classification_model(disease_count):
                 loss=tf.keras.losses.MeanSquaredError(),
                 metrics=['accuracy'])
 		models.append(model)
+		#model.summary()
 
 	return models
 
@@ -200,6 +212,8 @@ def train_models():
 	print_separation_line()
 	state_names = next(os.walk('.'))[1]
 	for state in state_names:
+		if(state == '.git' or state == '__pycache__'):
+			continue;
 		district_names = next(os.walk('./' + state))[1]
 		for district in district_names:
 			sub_district_names = next(os.walk('./' + state + "/" + district))[1]
@@ -272,34 +286,216 @@ def train_models():
 							print("Training for disease: ", mapping_dict_inv[i], " for state: ", str(state), ", city: ", str(city), ", field: ", str(field));
 							model_of_disease = models[i]
 							FIELD_TO_MODEL_MAPPING[state][district][sub_district][city][field][mapping_dict_inv[i]] = models[i]
+							DATASET_FIELD_STRENGTH[state][district][sub_district][city][field][mapping_dict_inv[i]] = len(disease_wise_separation_x[i])
 							x_values = disease_wise_separation_x[i]
 							y_values = disease_wise_separation_y[i]
-							#model_of_disease.fit(x_values, y_values, epochs = 1, verbose=0)
+							#model_of_disease.fit(x_values, y_values, epochs = 150, verbose=0)
 
+def get_model_for_field(state, district, sub_district, city, field):
+	return STATE_MODEL_MAPPING[state][district][sub_district][city][field]
+
+def test_models():
+	print_separation_line()
+	print("Running Frame specific tests for City level");
+	state_names = next(os.walk('.'))[1]
+	#framework = input("Please enter a framework for computation (a/b/c): ")
+	frame = None
+	localization_weightage = 0.1
+	communication_overhead_weightage = 2.0
+	avoid_concurrent_tiers_weightage = 5.0
+	frameworks = [ frameworkC(1, FILE_LOCATION_DISEASE_MAPPING, DISEASE_SPECIFIC_TESTING_DATA, FIELD_TO_MODEL_MAPPING, DATASET_FIELD_STRENGTH, communication_overhead_weightage, avoid_concurrent_tiers_weightage, localization_weightage), frameworkA(FIELD_TO_MODEL_MAPPING, DATASET_FIELD_STRENGTH), frameworkB(FILE_LOCATION_DISEASE_MAPPING, DISEASE_SPECIFIC_TESTING_DATA, FIELD_TO_MODEL_MAPPING, STATE_FIELD_MAPPING)]
+	#if(framework == 'a' or framework == 'A'):
+	#	frame = frameworkA(FIELD_TO_MODEL_MAPPING)
+	#elif(framework == 'b' or framework == 'B'):
+	#	frame = frameworkB(FILE_LOCATION_DISEASE_MAPPING, DISEASE_SPECIFIC_TESTING_DATA, FIELD_TO_MODEL_MAPPING, STATE_FIELD_MAPPING)
+	#elif(framework == 'c' or framework == 'C'):
+	#	localization_weightage = 0.1
+	#	communication_overhead_weightage = 2.0
+	#	avoid_concurrent_tiers_weightage = 5.0
+	#	frame = frameworkC(2, FILE_LOCATION_DISEASE_MAPPING, DISEASE_SPECIFIC_TESTING_DATA, FIELD_TO_MODEL_MAPPING, communication_overhead_weightage, avoid_concurrent_tiers_weightage, localization_weightage)
+
+
+
+	for frame in frameworks:
+		mse_values = []
+		for state in state_names:
+			if(state == '.git' or state == '__pycache__'):
+				continue;
+			district_names = next(os.walk('./' + state))[1]
+			for district in district_names:
+				sub_district_names = next(os.walk('./' + state + "/" + district))[1]
+				for sub_district in sub_district_names:
+					node_names = next(os.walk('./' + state + "/" + district + "/" + sub_district))[1]
+					for city in node_names:
+						fields = next(os.walk('./' + state + '/' + district + "/" + sub_district + "/" + city))[1]
+						for field in fields:
+							#field_val_1 = frame.infer(float_converted, 'field')
+							#ity_val_1 = frame.infer(float_converted, 'city')
+							#sub_district_val_1 = frame.infer(float_converted, 'sub_district')
+							#district_val_1 = frame.infer(float_converted, 'district')
+							#state_val_1 = frame.infer(float_converted, 'state')
+
+
+							file_location =  './' + state + '/' + district + '/' + sub_district + '/' + city + '/' + field + '/test-data.txt'
+							test_metrics = {}
+							file = open(file_location).readlines()
+							counter = 0;
+							while counter < len(file):
+								if(file[counter] == "\n"):
+									continue;
+								disease_name = file[counter][:-1]
+								test_metrics[disease_name] = []
+								counter = counter + 1
+								line = file[counter][:-1]
+								test_metrics[disease_name].append(line)
+								counter = counter + 1
+								line = file[counter][:-1]
+								test_metrics[disease_name].append(line)
+								counter = counter + 2
+							
+							diseases = FIELD_TO_MODEL_MAPPING[state][district][sub_district][city][field]
+							for disease in diseases:
+								#print_separation_line()
+								print("Testing for disease: ", disease, " for field: ", field, ", city: ", city, " for framework: ", frame)
+								model = diseases[disease]
+								test_data = test_metrics[disease]
+								for test in test_data:
+									a = test.split(",")
+									last_datapoint = float(a[-1].split('|')[0])
+									val = float(a[-1].split('|')[1])
+									a.pop(len(a) - 1)
+									a.append(last_datapoint)
+									float_converted = [float(num) for num in a]
+
+									field_val = frame.infer(float_converted, 'sub_district')
+									field_val = field_val[state][district][sub_district][disease]
+
+									if type(field_val) == list:
+										mse_values.append(np.square(np.subtract([val],[field_val[1]])).mean())
+									else:
+										mse_values.append(np.square(np.subtract([val],[field_val])).mean())
+
+									#city_val = city_val_1[state][district][sub_district][city][disease]
+									#print("Testing city")
+									#if type(field_val) == list:
+									#	mse_values.append(np.square(np.subtract([val],[city_val[1]])).mean())
+									#else:
+									#	mse_values.append(np.square(np.subtract([val],[city_val])).mean())
+
+									#sub_district_val = sub_district_val_1[state][district][sub_district][disease]
+									#print("Testing Sub District")
+									#if type(field_val) == list:
+									#	mse_values.append(np.square(np.subtract([val],[sub_district_val[1]])).mean())
+									#else:
+									#	mse_values.append(np.square(np.subtract([val],[sub_district_val])).mean())
+
+									#district_val = district_val_1[state][district][disease]
+									#print("Testing District")
+									#if type(field_val) == list:
+									#	mse_values.append(np.square(np.subtract([val],[district_val[1]])).mean())
+									#else:
+									#	mse_values.append(np.square(np.subtract([val],[district_val])).mean())
+
+									#state_val = state_val_1[state][disease]
+									#print("Testing State")
+									#if type(field_val) == list:
+									#	mse_values.append(np.square(np.subtract([val],[state_val[1]])).mean())
+									#else:
+									#	mse_values.append(np.square(np.subtract([val],[state_val])).mean())
+									#print_separation_line()
+									#break;
+		print("For framework: ", frame, ", mse = ", mse_values)
+		print("Average: ", sum(mse_values)/len(mse_values))
+								
 def main():
 	pre_processing()
 	data_sanitization()
 	model_creation()
 	partition_data_set()
 	train_models()
+	"""
+	data = "16,40.3,23.6,43.9,26.7,0.0,2.3,6.2,5.8"
+	split_data = data.split(",")
+	data2 = []
+	for k in split_data:
+		data2.append(float(k))
 
-	framework_choice = input("Please enter a framework for computation (a/b/c): ")
+	
+	tier = "state"
+
+	tiers = ["state", "district", "sub_district", "city", "field"]
+	split_data = data.split(",")
+	data2 = []
+	for k in split_data:
+		data2.append(float(k))
+
+	for tier in tiers:
+		average = 0.0
+		#a = frameworkA(FIELD_TO_MODEL_MAPPING, DATASET_FIELD_STRENGTH)
+		#a = frameworkB(FILE_LOCATION_DISEASE_MAPPING, DISEASE_SPECIFIC_TESTING_DATA, FIELD_TO_MODEL_MAPPING, STATE_FIELD_MAPPING)
+
+		localization_weightage = 0.1
+		communication_overhead_weightage = 2.0
+		avoid_concurrent_tiers_weightage = 5.0
+		a = frameworkC(1, FILE_LOCATION_DISEASE_MAPPING, DISEASE_SPECIFIC_TESTING_DATA, FIELD_TO_MODEL_MAPPING, DATASET_FIELD_STRENGTH, communication_overhead_weightage, avoid_concurrent_tiers_weightage, localization_weightage)
+
+		for i in range(10):
+			start_time = datetime.now()
+			val = a.infer(data2, tier)
+			end_time = datetime.now()
+			#print(val)
+			time = (end_time - start_time).total_seconds()
+			average = average + time
+			print("Evaluation Time : ", str(time))
+
+		average = average/10.0
+
+		print("For tier ", tier, " average = ", str(average))
+
+		print_separation_line()
+	
+	a = frameworkB(FILE_LOCATION_DISEASE_MAPPING, DISEASE_SPECIFIC_TESTING_DATA, FIELD_TO_MODEL_MAPPING, STATE_FIELD_MAPPING)
+	for i in range(10):
+		start_time = datetime.now()
+		val = a.infer(data2, tier)
+		end_time = datetime.now()
+		print("Evaluation Time : ", str(-1.0 * (start_time - end_time).total_seconds()))
+
+	print_separation_line()
+
+	localization_weightage = 0.1
+	communication_overhead_weightage = 2.0
+	avoid_concurrent_tiers_weightage = 5.0
+	a = frameworkC(1, FILE_LOCATION_DISEASE_MAPPING, DISEASE_SPECIFIC_TESTING_DATA, FIELD_TO_MODEL_MAPPING, DATASET_FIELD_STRENGTH, communication_overhead_weightage, avoid_concurrent_tiers_weightage, localization_weightage)
+	for i in range(10):
+		start_time = datetime.now()
+		val = a.infer(data2, tier)
+		end_time = datetime.now()
+		print("Evaluation Time : ", str(-1.0 * (start_time - end_time).total_seconds()))
+
+	print_separation_line()
+	
+
+	"""
+	framework = input("Please enter a framework for computation (a/b/c): ")
 	a = None
 	if(framework == 'a' or framework == 'A'):
-		a = frameworkA(FIELD_TO_MODEL_MAPPING)
+		a = frameworkA(FIELD_TO_MODEL_MAPPING, DATASET_FIELD_STRENGTH)
 	elif(framework == 'b' or framework == 'B'):
-		a = frameworkB(FILE_LOCATION_DISEASE_MAPPING, DISEASE_SPECIFIC_TESTING_DATA, FIELD_TO_MODEL_MAPPING)
+		a = frameworkB(FILE_LOCATION_DISEASE_MAPPING, DISEASE_SPECIFIC_TESTING_DATA, FIELD_TO_MODEL_MAPPING, STATE_FIELD_MAPPING)
 	elif(framework == 'c' or framework == 'C'):
 		localization_weightage = 0.1
 		communication_overhead_weightage = 2.0
 		avoid_concurrent_tiers_weightage = 5.0
-		a = frameworkC(2, FILE_LOCATION_DISEASE_MAPPING, DISEASE_SPECIFIC_TESTING_DATA, FIELD_TO_MODEL_MAPPING, communication_overhead_weightage, avoid_concurrent_tiers_weightage, localization_weightage)
+		a = frameworkC(1, FILE_LOCATION_DISEASE_MAPPING, DISEASE_SPECIFIC_TESTING_DATA, FIELD_TO_MODEL_MAPPING, DATASET_FIELD_STRENGTH, communication_overhead_weightage, avoid_concurrent_tiers_weightage, localization_weightage)
 	else:
 		print("Unrecognized framework");
 		return;
-
+	#print(a.infer(data2, "state"))
+	
 	while(True):
-		data = input("Please enter the test-data value as a comma separated 9 value string: ")
+		data = input("Please enter the test-data value as a comma separated 9 value string")#: (enter to use default)")
+		#data = "16,40.3,23.6,43.9,26.7,0.0,2.3,6.2,5.8"
 
 		split_data = data.split(",")
 		data2 = []
@@ -308,12 +504,17 @@ def main():
 
 		tier = input("Please enter a tier of interest - 'field', 'city', 'sub_district', 'district', 'state' : ")
 		#[16,40.3,23.6,43.9,26.7,0.0,2.3,6.2,5.8], 'field')
+		#start_time = datetime.now()
 		result = a.infer(data2, tier)
+		#end_time = datetime.now()
+		#print("Inference Time : ", str((end_time - start_time).total_seconds()))
 		
 		print_separation_line()
 		print("Results: ")
 		print(result)
 		print_separation_line()
-
+	"""
+	#test_models()
+	
 if __name__ == "__main__":
 	main()
